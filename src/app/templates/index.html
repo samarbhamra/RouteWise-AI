@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RouteWise AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      font-size: 0.95rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+    }
+    input::placeholder, textarea::placeholder { color: var(--muted); }
+    textarea { min-height: 80px; resize: vertical; }
+    .row { display: flex; gap: 1rem; }
+    .row > * { flex: 1; }
+    button {
+      padding: 0.6rem 1.2rem;
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 0.5rem;
+    }
+    button:hover { filter: brightness(1.1); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .result {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .result .time { color: var(--success); }
+    .result .error { color: #f85149; }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .tabs button {
+      margin: 0;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .tabs button.active {
+      background: var(--surface);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RouteWise AI</h1>
+    <p class="subtitle">Congestion-aware route optimization · ML travel-time prediction · Natural-language queries</p>
+
+    <div class="tabs">
+      <button type="button" class="tab active" data-panel="coordinates">By place or coordinates</button>
+      <button type="button" class="tab" data-panel="nl">Natural language</button>
+    </div>
+
+    <div id="panel-coordinates" class="panel active card">
+      <label for="origin">Origin (address or place)</label>
+      <input id="origin" type="text" placeholder="e.g. Union Square, San Francisco" />
+      <label for="destination" style="margin-top: 0.75rem;">Destination</label>
+      <input id="destination" type="text" placeholder="e.g. San Francisco International Airport" />
+      <button type="button" id="btn-route">Get optimized route</button>
+      <div id="route-result" class="result" style="display: none;"></div>
+    </div>
+
+    <div id="panel-nl" class="panel card">
+      <label for="nl-query">Ask in plain English</label>
+      <textarea id="nl-query" placeholder="e.g. from downtown to the airport avoiding traffic"></textarea>
+      {% if not has_openai %}
+      <p style="font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem;">Set OPENAI_API_KEY in .env for best parsing. Fallback parser is used otherwise.</p>
+      {% endif %}
+      <button type="button" id="btn-query">Get route</button>
+      <div id="query-result" class="result" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('panel-' + t.dataset.panel).classList.add('active');
+      });
+    });
+
+    function showRouteResult(el, data, isError) {
+      el.style.display = 'block';
+      if (data.error) {
+        el.innerHTML = '<span class="error">' + data.error + '</span>';
+        return;
+      }
+      el.innerHTML =
+        'Travel time (congestion-aware): <span class="time">' + data.travel_time_min + ' min</span>\n' +
+        'Static baseline: ' + data.static_baseline_time_min + ' min\n' +
+        'Path: ' + data.path.length + ' points\n' +
+        JSON.stringify(data.path.slice(0, 3), null, 2) + (data.path.length > 3 ? '\n...' : '');
+    }
+
+    document.getElementById('btn-route').addEventListener('click', async () => {
+      const origin = document.getElementById('origin').value.trim();
+      const destination = document.getElementById('destination').value.trim();
+      const el = document.getElementById('route-result');
+      if (!origin || !destination) {
+        el.style.display = 'block';
+        el.innerHTML = '<span class="error">Enter origin and destination.</span>';
+        return;
+      }
+      el.style.display = 'block';
+      el.innerHTML = 'Loading...';
+      try {
+        const r = await fetch('/api/route?origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination));
+        const data = await r.json();
+        showRouteResult(el, data);
+      } catch (e) {
+        el.innerHTML = '<span class="error">' + e.message + '</span>';
+      }
+    });
+
+    document.getElementById('btn-query').addEventListener('click', async () => {
+      const query = document.getElementById('nl-query').value.trim();
+      const el = document.getElementById('query-result');
+      if (!query) {
+        el.style.display = 'block';
+        el.innerHTML = '<span class="error">Enter a natural-language query.</span>';
+        return;
+      }
+      el.style.display = 'block';
+      el.innerHTML = 'Loading...';
+      try {
+        const r = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+        const data = await r.json();
+        if (data.error) {
+          el.innerHTML = '<span class="error">' + data.error + '</span>' + (data.parsed ? '\nParsed: ' + JSON.stringify(data.parsed) : '');
+          return;
+        }
+        el.innerHTML =
+          'Parsed: ' + JSON.stringify(data.parsed) + '\n\n' +
+          'Travel time: <span class="time">' + data.travel_time_min + ' min</span>\n' +
+          'Static baseline: ' + data.static_baseline_time_min + ' min\n' +
+          'Path: ' + data.path.length + ' points';
+      } catch (e) {
+        el.innerHTML = '<span class="error">' + e.message + '</span>';
+      }
+    });
+  </script>
+</body>
+</html>

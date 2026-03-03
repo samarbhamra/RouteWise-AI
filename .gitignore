@@ -1,0 +1,17 @@
+venv/
+.venv/
+.env
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+data/
+models/*.joblib
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.ipynb_checkpoints/
