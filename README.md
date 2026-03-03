@@ -89,6 +89,4 @@ RouteWise-AI/
 - `GET /api/route?origin=...&destination=...` — Optimized route (congestion-aware).
 - `POST /api/query` — Natural-language: `{"query": "from downtown to airport avoiding traffic"}`.
 
-## License
 
-MIT.

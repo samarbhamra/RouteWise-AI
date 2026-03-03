@@ -49,3 +49,5 @@ CREATE TABLE IF NOT EXISTS route_queries (
     travel_time_min DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+
