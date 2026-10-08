@@ -1,3 +1,3 @@
-from .travel_time import TravelTimePredictor, load_predictor
+from .travel_time import load_predictor
 
-__all__ = ["TravelTimePredictor", "load_predictor"]
+__all__ = ["load_predictor"]
